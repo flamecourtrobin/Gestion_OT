@@ -78,28 +78,29 @@ function formatDateForSupabase(value) {
 
   const v = String(value).trim();
 
-  const matchDot = v.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+
+  let matchDot = v.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2})$/);
+  if (matchDot) {
+    return `20${matchDot[3]}-${matchDot[2].padStart(2,'0')}-${matchDot[1].padStart(2,'0')}`;
+  }
+
+  matchDot = v.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if (matchDot) {
     return `${matchDot[3]}-${matchDot[2].padStart(2,'0')}-${matchDot[1].padStart(2,'0')}`;
   }
 
-  const matchSlash = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  let matchSlash = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+  if (matchSlash) {
+    return `20${matchSlash[3]}-${matchSlash[2].padStart(2,'0')}-${matchSlash[1].padStart(2,'0')}`;
+  }
+
+  matchSlash = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (matchSlash) {
     return `${matchSlash[3]}-${matchSlash[2].padStart(2,'0')}-${matchSlash[1].padStart(2,'0')}`;
   }
 
-  return v;
-}
-function normalizeImport(o) {
-  return {
-    numero_ot: String(o.numero_ot || o['n° ot'] || o['n ot'] || o.ot || '').trim(),
-    nom: String(o.nom || o.titre || '').trim(),
-    date_fin: formatDateForSupabase(o.date_fin || o['date de fin'] || ''),
-    emplacement: String(o.emplacement || o.lieu || '').trim(),
-    autre: String(o.autre || o.commentaire || '').trim(),
-    statut: 'Disponible',
-    created_by: state.user.id
-  };
+  return null;
 }
 function previewPaste(){state.importRows=parseCSV($('#csvpaste').value); render()}
 function handleFile(e){const file=e.target.files[0]; if(!file)return; const reader=new FileReader(); reader.onload=ev=>{try{if(file.name.match(/\.xlsx?$/i)){const wb=XLSX.read(ev.target.result,{type:'array'}); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); state.importRows=rows.map(normalizeImport).filter(o=>o.numero_ot&&o.nom);} else {state.importRows=parseCSV(ev.target.result)} render();}catch(ex){err(ex.message)}}; file.name.match(/\.xlsx?$/i)?reader.readAsArrayBuffer(file):reader.readAsText(file);}
