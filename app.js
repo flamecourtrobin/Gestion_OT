@@ -101,6 +101,18 @@ function formatDateForSupabase(value) {
   }
 
   return null;
+  
+}
+function normalizeImport(o) {
+  return {
+    numero_ot: String(o.numero_ot || o['n° ot'] || o['n ot'] || o.ot || '').trim(),
+    nom: String(o.nom || o.titre || '').trim(),
+    date_fin: formatDateForSupabase(o.date_fin || o['date de fin'] || ''),
+    emplacement: String(o.emplacement || o.lieu || '').trim(),
+    autre: String(o.autre || o.commentaire || '').trim(),
+    statut: 'Disponible',
+    created_by: state.user.id
+  };
 }
 function previewPaste(){state.importRows=parseCSV($('#csvpaste').value); render()}
 function handleFile(e){const file=e.target.files[0]; if(!file)return; const reader=new FileReader(); reader.onload=ev=>{try{if(file.name.match(/\.xlsx?$/i)){const wb=XLSX.read(ev.target.result,{type:'array'}); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); state.importRows=rows.map(normalizeImport).filter(o=>o.numero_ot&&o.nom);} else {state.importRows=parseCSV(ev.target.result)} render();}catch(ex){err(ex.message)}}; file.name.match(/\.xlsx?$/i)?reader.readAsArrayBuffer(file):reader.readAsText(file);}
