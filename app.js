@@ -24,8 +24,29 @@ async function loadAll(){
   await loadOTs();
   if(isAdmin()){ await Promise.all([loadUsers(),loadHistory(),loadAccessRequests()]); }
 }
-async function loadOTs(){ const {data,error}=await sb.from('ots').select('*, pris_par_profile:profiles!ots_pris_par_fkey(full_name,email)').order('created_at',{ascending:false}); if(error) return err(error.message); state.ots=data||[]; }
-async function loadUsers(){ const {data,error}=await sb.from('profiles').select('*').order('created_at',{ascending:false}); if(!error) state.users=data||[]; }
+async function loadOTs(){
+  let all = [];
+  let from = 0;
+  const size = 1000;
+
+  while (true) {
+    const { data, error } = await sb
+      .from('ots')
+      .select('*, pris_par_profile:profiles!ots_pris_par_fkey(full_name,email)')
+      .order('created_at', { ascending:false })
+      .range(from, from + size - 1);
+
+    if (error) return err(error.message);
+
+    all = all.concat(data || []);
+
+    if (!data || data.length < size) break;
+
+    from += size;
+  }
+
+  state.ots = all;
+}async function loadUsers(){ const {data,error}=await sb.from('profiles').select('*').order('created_at',{ascending:false}); if(!error) state.users=data||[]; }
 async function loadHistory(){ const {data,error}=await sb.from('ot_history').select('*, profiles(full_name,email)').order('created_at',{ascending:false}).limit(300); if(!error) state.history=data||[]; }
 async function loadAccessRequests(){ const {data,error}=await sb.from('access_requests').select('*').order('created_at',{ascending:false}); if(!error) state.accessRequests=data||[]; }
 async function log(action, details, ot_id=null){ await sb.from('ot_history').insert({ot_id, action, user_id:state.user?.id, details}); }
