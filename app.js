@@ -226,7 +226,51 @@ function normalizeImport(o) {
 }
 function previewPaste(){state.importRows=parseCSV($('#csvpaste').value); render()}
 function handleFile(e){const file=e.target.files[0]; if(!file)return; const reader=new FileReader(); reader.onload=ev=>{try{if(file.name.match(/\.xlsx?$/i)){const wb=XLSX.read(ev.target.result,{type:'array'}); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); state.importRows=rows.map(normalizeImport).filter(o=>o.numero_ot&&o.nom);} else {state.importRows=parseCSV(ev.target.result)} render();}catch(ex){err(ex.message)}}; file.name.match(/\.xlsx?$/i)?reader.readAsArrayBuffer(file):reader.readAsText(file);}
+async function confirmImport() {
+  const clean = s => String(s ?? '').trim();
 
+  const uniqueMap = new Map();
+
+  state.importRows.forEach(r => {
+    const numero = clean(r.numero_ot);
+
+    if (!numero) return;
+
+    uniqueMap.set(numero, {
+      ...r,
+      numero_ot: numero,
+      nom: clean(r.nom),
+      emplacement: clean(r.emplacement),
+      autre: clean(r.autre),
+      statut: 'Disponible',
+      created_by: state.user.id
+    });
+  });
+
+  const rows = Array.from(uniqueMap.values());
+
+  if (!rows.length) {
+    return err('Aucun OT valide à importer.');
+  }
+
+  const { error } = await sb
+    .from('ots')
+    .upsert(rows, {
+      onConflict: 'numero_ot'
+    });
+
+  if (error) return err(error.message);
+
+  await log(
+    'Import OT',
+    `${rows.length} OT traités.`
+  );
+
+  await loadAll();
+  state.importRows = [];
+
+  msg(`${rows.length} OT importés ou mis à jour.`);
+}
 function downloadTemplate(){download('modele_ot.csv','numero_ot,nom,date_fin,emplacement,autre\nOT-2001,Inspection ligne,2026-07-01,Atelier 2,Commentaire libre\n')}
 function download(name,text){const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'})); a.download=name; a.click();}
 function exportCSV(){const rows=filtered(state.ots); const head=['numero_ot','nom','date_fin','emplacement','date_prise','autre','statut']; const csv=[head.join(';'),...rows.map(o=>head.map(h=>`"${String(o[h]??'').replaceAll('"','""')}"`).join(';'))].join('\n'); download('export_ot.csv',csv)}
