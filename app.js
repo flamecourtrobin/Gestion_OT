@@ -73,16 +73,22 @@ async function saveUser(e){e.preventDefault(); const payload={id:$('#user_uuid')
 async function removeUser(id){if(!confirm('Supprimer ce profil ? Le compte Auth reste dans Supabase.'))return; const {error}=await sb.from('profiles').delete().eq('id',id); if(error) return err(error.message); await loadAll(); msg('Profil supprimé.');}
 function importPage(){if(!canAdd()) return shell('<div class="err">Accès refusé.</div>','Import OT'); return shell(`<div class="panel"><h3>Importer une liste d'OT</h3><p class="muted">Colonnes acceptées : numero_ot, nom, date_fin, emplacement, autre. CSV et XLSX acceptés.</p><div class="drop"><input type="file" accept=".csv,.xlsx,.xls" onchange="handleFile(event)"><br><br><button class="secondary" onclick="downloadTemplate()">Télécharger modèle CSV</button></div><div class="field"><label>Ou coller un CSV</label><textarea id="csvpaste" placeholder="numero_ot,nom,date_fin,emplacement,autre"></textarea></div><button onclick="previewPaste()">Prévisualiser</button> ${state.importRows.length?`<button onclick="confirmImport()">Importer ${state.importRows.length} OT</button>`:''}</div><br>${state.importRows.length?`<div class="panel import-preview"><h3>Prévisualisation</h3>${otTable(state.importRows.map((r,i)=>({...r,id:i,statut:'Disponible'})),false)}</div>`:''}`,'Import groupé','Charge plusieurs OT en une seule fois')}
 function parseCSV(text){const lines=text.trim().split(/\r?\n/).filter(Boolean); const sep=lines[0].includes(';')?';':','; const headers=lines.shift().split(sep).map(h=>h.trim().toLowerCase()); return lines.map(line=>{const vals=line.split(sep).map(v=>v.trim()); let o={}; headers.forEach((h,i)=>o[h]=vals[i]||''); return normalizeImport(o);}).filter(o=>o.numero_ot&&o.nom)}
-function normalizeImport(o) {
-  return {
-    numero_ot: String(o.numero_ot || o['n° ot'] || o['n ot'] || o.ot || '').trim(),
-    nom: String(o.nom || o.titre || '').trim(),
-    date_fin: formatDateForSupabase(o.date_fin || o['date de fin'] || ''),
-    emplacement: String(o.emplacement || o.lieu || '').trim(),
-    autre: String(o.autre || o.commentaire || '').trim(),
-    statut: 'Disponible',
-    created_by: state.user.id
-  };
+function formatDateForSupabase(value) {
+  if (!value) return null;
+
+  const v = String(value).trim();
+
+  const matchDot = v.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (matchDot) {
+    return `${matchDot[3]}-${matchDot[2].padStart(2,'0')}-${matchDot[1].padStart(2,'0')}`;
+  }
+
+  const matchSlash = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (matchSlash) {
+    return `${matchSlash[3]}-${matchSlash[2].padStart(2,'0')}-${matchSlash[1].padStart(2,'0')}`;
+  }
+
+  return v;
 }
 function normalizeImport(o) {
   return {
@@ -91,6 +97,7 @@ function normalizeImport(o) {
     date_fin: formatDateForSupabase(o.date_fin || o['date de fin'] || ''),
     emplacement: String(o.emplacement || o.lieu || '').trim(),
     autre: String(o.autre || o.commentaire || '').trim(),
+    date_fin: formatDateForSupabase(...),
     statut: 'Disponible',
     created_by: state.user.id
   };
