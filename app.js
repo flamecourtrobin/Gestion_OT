@@ -97,7 +97,6 @@ function normalizeImport(o) {
     date_fin: formatDateForSupabase(o.date_fin || o['date de fin'] || ''),
     emplacement: String(o.emplacement || o.lieu || '').trim(),
     autre: String(o.autre || o.commentaire || '').trim(),
-    date_fin: formatDateForSupabase(...),
     statut: 'Disponible',
     created_by: state.user.id
   };
