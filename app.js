@@ -131,7 +131,9 @@ function usersPage(){if(!isAdmin()) return shell('<div class="err">Accès refus�
   .filter(([k]) => isSuperAdmin() || k !== 'super_admin')
   .map(([k,v]) => `<option value="${k}">${v}</option>`)
   .join('')}</select></div><button>Enregistrer le profil</button></form></div><div class="panel"><h3>Demandes d'accès</h3>${state.accessRequests.map(r=>`<div class="history-item"><b>${esc(r.email)}</b><br><span class="muted">${fmt(r.created_at)}</span></div>`).join('')||'<p>Aucune demande.</p>'}<p class="muted">Les demandes ouvrent aussi un email vers ${ACCESS_REQUEST_EMAIL}.</p></div></div><br>${userTable()}`,'Comptes & accès','Gestion réservée à l’administrateur')}
-function userTable(){return `<div class="table-wrap"><table><thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>ID</th><th>Actions</th></tr></thead><tbody>${state.users.map(u=>`<tr><td>${esc(u.full_name)}</td><td>${esc(u.email)}</td><td>${ROLE_LABELS[u.role]||u.role}</td><td>${esc(u.id)}</td><td class="actions"><button class="small secondary" onclick="editUser('${u.id}')">Modifier</button>${u.id!==state.user.id?`<button class="small danger" onclick="removeUser('${u.id}')">Supprimer profil</button>`:''}</td></tr>`).join('')}</tbody></table></div>`}
+function userTable(){return `<div class="table-wrap"><table><thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>ID</th><th>Actions</th></tr></thead><tbody>${state.users.map(u=>`<tr><td>${esc(u.full_name)}</td><td>${esc(u.email)}</td><td>${ROLE_LABELS[u.role]||u.role}</td><td>${esc(u.id)}</td><td class="actions"><button class="small secondary" onclick="editUser('${u.id}')">Modifier</button>${u.id!==state.user.id?`<button class="small danger" onclick="removeUser('${u.id}')">Supprimer profil</button>`:''}</td></tr>`).join('')}</tbody></table></div>`const visibleUsers = isSuperAdmin()
+  ? state.users
+  : state.users.filter(u => u.role !== 'super_admin');}
 function editUser(id){const u=state.users.find(x=>x.id===id); $('#user_id').value=u.id; $('#user_uuid').value=u.id; $('#user_name').value=u.full_name||''; $('#user_email').value=u.email; $('#user_role').value=u.role;} 
 async function saveUser(e){
   e.preventDefault();
