@@ -16,10 +16,10 @@ const fmt = v => v ? new Date(v).toLocaleString('fr-BE') : '';
 const today = () => new Date().toISOString().slice(0,10);
 const isSuperAdmin = () => state.user?.role === 'super_admin';
 const isAdmin = () => ['super_admin','admin'].includes(state.user?.role);
-const canAdd = () => ['admin','responsable'].includes(state.user?.role);
-const canEdit = () => ['admin','responsable'].includes(state.user?.role);
+const canAdd = () => ['super_admin','admin','responsable'].includes(state.user?.role);
+const canEdit = () => ['super_admin','admin','responsable'].includes(state.user?.role);
+const canViewAll = () => ['super_admin','admin','responsable','lecture'].includes(state.user?.role);
 const canDel = () => isAdmin();
-const canViewAll = () => ['admin','responsable','lecture'].includes(state.user?.role);
 function statusOf(o){ if(o.statut==='Terminé') return 'Terminé'; if(o.statut==='Pris') return 'Pris'; if(o.date_fin && o.date_fin < today()) return 'Retard'; return 'Disponible'; }
 function msg(m){state.message=m; state.error=''; render()} function err(m){state.error=m; state.message=''; render()}
 async function init(){ const {data:{session}} = await sb.auth.getSession(); state.session=session; if(session) await loadAll(); render(); sb.auth.onAuthStateChange(async (_e, session)=>{state.session=session; if(session) await loadAll(); else state.user=null; render();}); }
