@@ -29,7 +29,9 @@ async function loadAll(){
   if(pe || !profile){ state.user={id:uid,email:state.session.user.email,full_name:state.session.user.email,role:'utilisateur'}; return; }
   state.user=profile;
   await loadOTs();
-  if(isAdmin()){ await Promise.all([loadUsers(),loadHistory(),loadAccessRequests()]); }
+ if(isAdmin() || isSuperAdmin()){
+  await Promise.all([loadUsers(),loadHistory(),loadAccessRequests()]);
+}
 }
 async function loadOTs(){
   let all = [];
