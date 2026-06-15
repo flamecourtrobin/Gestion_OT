@@ -9,7 +9,7 @@ const ROLE_LABELS = {
   utilisateur:'Utilisateur',
   lecture:'Lecture seule'
 };
-let state = { session:null, user:null, page:'dashboard', message:'', error:'', ots:[], users:[], history:[], accessRequests:[], foundOT:null, filters:{q:'',statut:'',emplacement:''}, importRows:[], editId:null };
+let state = { session:null, user:null, page:'dashboard', message:'', error:'', ots:[],missingArticles:[], users:[], history:[], accessRequests:[], foundOT:null, filters:{q:'',statut:'',emplacement:''}, importRows:[], editId:null };
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = v => v ? new Date(v).toLocaleString('fr-BE') : '';
@@ -29,6 +29,7 @@ async function loadAll(){
   if(pe || !profile){ state.user={id:uid,email:state.session.user.email,full_name:state.session.user.email,role:'utilisateur'}; return; }
   state.user=profile;
   await loadOTs();
+  await loadMissingArticles();
  if (isAdmin()) {
   await Promise.all([
     loadUsers(),
@@ -60,7 +61,18 @@ async function loadOTs(){
   }
 
   state.ots = all;
-}async function loadUsers(){ const {data,error}=await sb.from('profiles').select('*').order('created_at',{ascending:false}); if(!error) state.users=data||[]; }
+}
+async function loadMissingArticles(){
+  const {data,error} = await sb
+    .from('ot_missing_articles')
+    .select('*')
+    .order('created_at',{ascending:false});
+
+  if(error) return err(error.message);
+
+  state.missingArticles = data || [];
+}
+async function loadUsers(){ const {data,error}=await sb.from('profiles').select('*').order('created_at',{ascending:false}); if(!error) state.users=data||[]; }
 async function loadHistory(){ const {data,error}=await sb.from('ot_history').select('*, profiles(full_name,email)').order('created_at',{ascending:false}).limit(300); if(!error) state.history=data||[]; }
 async function loadAccessRequests(){ const {data,error}=await sb.from('access_requests').select('*').order('created_at',{ascending:false}); if(!error) state.accessRequests=data||[]; }
 async function log(action, details, ot_id=null){ await sb.from('ot_history').insert({ot_id, action, user_id:state.user?.id, details}); }
@@ -104,7 +116,7 @@ async function requestAccess(e){
 }
 function setPage(p){state.page=p; state.message=''; state.error=''; state.foundOT=null; state.importRows=[]; state.editId=null; render();}
 function nav(p,t){return `<button class="${state.page===p?'active':''}" onclick="setPage('${p}')">${t}</button>`}
-function shell(content,title,sub=''){return `<div class="app"><aside class="side"><div class="brand">Gestion OT</div><div class="version">Version 4 Supabase</div><div class="userbox"><b>${esc(state.user.full_name||state.user.email)}</b><br>${esc(state.user.email)}<br><span>${ROLE_LABELS[state.user.role]||state.user.role}</span></div><nav class="nav">${nav('dashboard','Tableau de bord')}${canAdd()?nav('add','Ajouter un OT'):''}${nav('take','Récupérer un OT')}${nav('my','Mes OT')}${canViewAll()?nav('table','Tableau général'):''}${canAdd()?nav('import','Import OT'):''}${isAdmin()?nav('users','Comptes & accès'):''}${isAdmin()?nav('history','Historique'):''}<button onclick="logout()">Déconnexion</button></nav></aside><main class="main"><div class="top"><div><h1>${title}</h1><div class="sub">${sub}</div></div></div>${state.message?`<div class="msg">${esc(state.message)}</div>`:''}${state.error?`<div class="err">${esc(state.error)}</div>`:''}${content}</main></div>`}
+function shell(content,title,sub=''){return `<div class="app"><aside class="side"><div class="brand">Gestion OT</div><div class="version">Version 4 Supabase</div><div class="userbox"><b>${esc(state.user.full_name||state.user.email)}</b><br>${esc(state.user.email)}<br><span>${ROLE_LABELS[state.user.role]||state.user.role}</span></div><nav class="nav">${nav('dashboard','Tableau de bord')}${canAdd()?nav('add','Ajouter un OT'):''}${nav('take','Récupérer un OT')}${nav('my','Mes OT')}${canViewAll()?nav('table','Tableau général'):''}${canAdd()?nav('import','Import OT'):''}${canAdd()?nav('missing','Articles manquants'):''}${isAdmin()?nav('users','Comptes & accès'):''}${isAdmin()?nav('history','Historique'):''}<button onclick="logout()">Déconnexion</button></nav></aside><main class="main"><div class="top"><div><h1>${title}</h1><div class="sub">${sub}</div></div></div>${state.message?`<div class="msg">${esc(state.message)}</div>`:''}${state.error?`<div class="err">${esc(state.error)}</div>`:''}${content}</main></div>`}
 function renderLogin(error=''){document.querySelector('#app').innerHTML=`<div class="login-wrap"><div class="login-card"><section class="hero"><h1>Gestion des OT</h1><p>Application connectée à Supabase : mêmes données sur PC, tablette et smartphone.</p><p><b>Demander un accès</b><br>La demande sera enregistrée et un email sera préparé pour ${ACCESS_REQUEST_EMAIL}.</p></section><section class="login-form"><h2>Connexion</h2>${error?`<div class="err">${esc(error)}</div>`:''}<form onsubmit="login(event)"><div class="field"><label>Email</label><input id="email" type="email" required placeholder="prenom.nom@ucb.com"></div><div class="field"><label>Mot de passe</label><input id="password" type="password" required></div><button type="submit">Se connecter</button><button type="button" class="secondary" onclick="resetPassword()">
   Mot de passe oublié
 </button></form><hr><h3>Avoir accès</h3><form onsubmit="requestAccess(event)"><div class="field"><label>Votre adresse mail</label><input id="request_email" type="email" required placeholder="prenom.nom@ucb.com"></div><button class="secondary" type="submit">Envoyer la demande</button></form></section></div></div>`}
@@ -115,6 +127,7 @@ function render(){ if(!state.session || !state.user) return renderLogin(); const
   my: my,
   table: table,
   import: importPage,
+  missing: missingPage,
   users: usersPage,
   history: historyPage
 }; document.querySelector('#app').innerHTML=(pages[state.page]||dashboard)(); }
@@ -299,5 +312,17 @@ function downloadTemplate(){download('modele_ot.csv','numero_ot,nom,date_fin,emp
 function download(name,text){const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'})); a.download=name; a.click();}
 function exportCSV(){const rows=filtered(state.ots); const head=['numero_ot','nom','date_fin','emplacement','date_prise','autre','statut']; const csv=[head.join(';'),...rows.map(o=>head.map(h=>`"${String(o[h]??'').replaceAll('"','""')}"`).join(';'))].join('\n'); download('export_ot.csv',csv)}
 function exportExcel(){const ws=XLSX.utils.json_to_sheet(filtered(state.ots)); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'OT'); XLSX.writeFile(wb,'export_ot.xlsx');}
+function missingPage(){
+  return shell(
+    `
+    <div class="panel">
+      <h3>Articles manquants</h3>
+      <p>La page fonctionne.</p>
+    </div>
+    `,
+    'Articles manquants',
+    'Gestion des articles manquants'
+  );
+}
 function historyPage(){if(!isAdmin()) return shell('<div class="err">Accès refusé.</div>','Historique'); return shell(`<div class="panel">${state.history.map(h=>`<div class="history-item"><b>${esc(h.action)}</b> — ${esc(h.details)}<br><span class="muted">${fmt(h.created_at)} par ${esc(h.profiles?.full_name||h.profiles?.email||'')}</span></div>`).join('')||'Aucun historique.'}</div>`,'Historique','Dernières actions enregistrées dans Supabase')}
 init();
