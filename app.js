@@ -14,7 +14,8 @@ const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = v => v ? new Date(v).toLocaleString('fr-BE') : '';
 const today = () => new Date().toISOString().slice(0,10);
-const isAdmin = () => state.user?.role === 'admin';
+const isSuperAdmin = () => state.user?.role === 'super_admin';
+const isAdmin = () => ['super_admin','admin'].includes(state.user?.role);
 const canAdd = () => ['admin','responsable'].includes(state.user?.role);
 const canEdit = () => ['admin','responsable'].includes(state.user?.role);
 const canDel = () => isAdmin();
@@ -124,10 +125,45 @@ function my(){const list=state.ots.filter(o=>o.pris_par===state.user.id); return
 function otTable(list,actions){return `<div class="table-wrap"><table><thead><tr><th>N° OT</th><th>Nom</th><th>Date fin</th><th>Emplacement</th><th>Pris par</th><th>Date prise</th><th>Autre</th><th>Statut</th>${actions?'<th>Actions</th>':''}</tr></thead><tbody>${list.map(o=>{const st=statusOf(o), pris=o.pris_par_profile?.full_name||o.pris_par_profile?.email||'';return `<tr><td><b>${esc(o.numero_ot)}</b></td><td>${esc(o.nom)}</td><td>${esc(o.date_fin)}</td><td>${esc(o.emplacement)}</td><td>${esc(pris)}</td><td>${fmt(o.date_prise)}</td><td>${esc(o.autre)}</td><td><span class="badge ${st}">${st}</span></td>${actions?`<td class="actions">${canEdit()?`<button class="small secondary" onclick="state.editId='${o.id}';setPage('add')">Modifier</button>`:''}${canDel()?`<button class="small danger" onclick="deleteOT('${o.id}')">Supprimer</button>`:''}${canEdit()&&o.statut==='Pris'?`<button class="small ghost" onclick="finishOT('${o.id}')">Terminer</button>`:''}</td>`:''}</tr>`}).join('')||'<tr><td colspan="9">Aucun OT.</td></tr>'}</tbody></table></div>`}
 async function deleteOT(id){if(!confirm('Supprimer cet OT ?'))return; const o=state.ots.find(x=>x.id===id); const {error}=await sb.from('ots').delete().eq('id',id); if(error) return err(error.message); await log('Suppression OT',o?.numero_ot||id); await loadAll(); msg('OT supprimé.')} 
 async function finishOT(id){const o=state.ots.find(x=>x.id===id); const {error}=await sb.from('ots').update({statut:'Terminé'}).eq('id',id); if(error) return err(error.message); await log('OT terminé',o?.numero_ot,id); await loadAll(); msg('OT terminé.');}
-function usersPage(){if(!isAdmin()) return shell('<div class="err">Accès refusé.</div>','Comptes'); return shell(`<div class="grid2"><div class="panel"><h3>Créer / modifier un profil</h3><p class="muted">Crée d’abord l’utilisateur dans Supabase > Authentication > Users. Ensuite ajoute/modifie son profil ici avec le même email.</p><form onsubmit="saveUser(event)"><input type="hidden" id="user_id"><div class="field"><label>ID utilisateur Supabase</label><input id="user_uuid" placeholder="uuid depuis Authentication > Users" required></div><div class="field"><label>Nom</label><input id="user_name" required></div><div class="field"><label>Email</label><input id="user_email" type="email" required></div><div class="field"><label>Rôle</label><select id="user_role">${Object.entries(ROLE_LABELS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div><button>Enregistrer le profil</button></form></div><div class="panel"><h3>Demandes d'accès</h3>${state.accessRequests.map(r=>`<div class="history-item"><b>${esc(r.email)}</b><br><span class="muted">${fmt(r.created_at)}</span></div>`).join('')||'<p>Aucune demande.</p>'}<p class="muted">Les demandes ouvrent aussi un email vers ${ACCESS_REQUEST_EMAIL}.</p></div></div><br>${userTable()}`,'Comptes & accès','Gestion réservée à l’administrateur')}
+function usersPage(){if(!isAdmin()) return shell('<div class="err">Accès refusé.</div>','Comptes'); return shell(`<div class="grid2"><div class="panel"><h3>Créer / modifier un profil</h3><p class="muted">Crée d’abord l’utilisateur dans Supabase > Authentication > Users. Ensuite ajoute/modifie son profil ici avec le même email.</p><form onsubmit="saveUser(event)"><input type="hidden" id="user_id"><div class="field"><label>ID utilisateur Supabase</label><input id="user_uuid" placeholder="uuid depuis Authentication > Users" required></div><div class="field"><label>Nom</label><input id="user_name" required></div><div class="field"><label>Email</label><input id="user_email" type="email" required></div><div class="field"><label>Rôle</label><select id="user_role">${Object.entries(ROLE_LABELS)
+  .filter(([k]) => isSuperAdmin() || k !== 'super_admin')
+  .map(([k,v]) => `<option value="${k}">${v}</option>`)
+  .join('')}</select></div><button>Enregistrer le profil</button></form></div><div class="panel"><h3>Demandes d'accès</h3>${state.accessRequests.map(r=>`<div class="history-item"><b>${esc(r.email)}</b><br><span class="muted">${fmt(r.created_at)}</span></div>`).join('')||'<p>Aucune demande.</p>'}<p class="muted">Les demandes ouvrent aussi un email vers ${ACCESS_REQUEST_EMAIL}.</p></div></div><br>${userTable()}`,'Comptes & accès','Gestion réservée à l’administrateur')}
 function userTable(){return `<div class="table-wrap"><table><thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>ID</th><th>Actions</th></tr></thead><tbody>${state.users.map(u=>`<tr><td>${esc(u.full_name)}</td><td>${esc(u.email)}</td><td>${ROLE_LABELS[u.role]||u.role}</td><td>${esc(u.id)}</td><td class="actions"><button class="small secondary" onclick="editUser('${u.id}')">Modifier</button>${u.id!==state.user.id?`<button class="small danger" onclick="removeUser('${u.id}')">Supprimer profil</button>`:''}</td></tr>`).join('')}</tbody></table></div>`}
 function editUser(id){const u=state.users.find(x=>x.id===id); $('#user_id').value=u.id; $('#user_uuid').value=u.id; $('#user_name').value=u.full_name||''; $('#user_email').value=u.email; $('#user_role').value=u.role;} 
-async function saveUser(e){e.preventDefault(); const payload={id:$('#user_uuid').value.trim(),full_name:$('#user_name').value.trim(),email:$('#user_email').value.trim().toLowerCase(),role:$('#user_role').value}; const {error}=await sb.from('profiles').upsert(payload); if(error) return err(error.message); await loadAll(); msg('Profil enregistré.');}
+async function saveUser(e){
+  e.preventDefault();
+
+  const role = $('#user_role').value;
+
+  if (role === 'super_admin' && !isSuperAdmin()) {
+    return err(
+      'Seul un Super Administrateur peut attribuer ce rôle.'
+    );
+  }
+
+  if (role === 'admin' && !isSuperAdmin()) {
+    return err(
+      'Seul un Super Administrateur peut créer ou modifier un administrateur.'
+    );
+  }
+
+  const payload = {
+    id: $('#user_uuid').value.trim(),
+    full_name: $('#user_name').value.trim(),
+    email: $('#user_email').value.trim().toLowerCase(),
+    role: role
+  };
+
+  const { error } = await sb
+    .from('profiles')
+    .upsert(payload);
+
+  if (error) return err(error.message);
+
+  await loadAll();
+  msg('Profil enregistré.');
+}
 async function removeUser(id){if(!confirm('Supprimer ce profil ? Le compte Auth reste dans Supabase.'))return; const {error}=await sb.from('profiles').delete().eq('id',id); if(error) return err(error.message); await loadAll(); msg('Profil supprimé.');}
 function importPage(){if(!canAdd()) return shell('<div class="err">Accès refusé.</div>','Import OT'); return shell(`<div class="panel"><h3>Importer une liste d'OT</h3><p class="muted">Colonnes acceptées : numero_ot, nom, date_fin, emplacement, autre. CSV et XLSX acceptés.</p><div class="drop"><input type="file" accept=".csv,.xlsx,.xls" onchange="handleFile(event)"><br><br><button class="secondary" onclick="downloadTemplate()">Télécharger modèle CSV</button></div><div class="field"><label>Ou coller un CSV</label><textarea id="csvpaste" placeholder="numero_ot,nom,date_fin,emplacement,autre"></textarea></div><button onclick="previewPaste()">Prévisualiser</button> ${state.importRows.length?`<button onclick="confirmImport()">Importer ${state.importRows.length} OT</button>`:''}</div><br>${state.importRows.length?`<div class="panel import-preview"><h3>Prévisualisation</h3>${otTable(state.importRows.map((r,i)=>({...r,id:i,statut:'Disponible'})),false)}</div>`:''}`,'Import groupé','Charge plusieurs OT en une seule fois')}
 function parseCSV(text){const lines=text.trim().split(/\r?\n/).filter(Boolean); const sep=lines[0].includes(';')?';':','; const headers=lines.shift().split(sep).map(h=>h.trim().toLowerCase()); return lines.map(line=>{const vals=line.split(sep).map(v=>v.trim()); let o={}; headers.forEach((h,i)=>o[h]=vals[i]||''); return normalizeImport(o);}).filter(o=>o.numero_ot&&o.nom)}
