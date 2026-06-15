@@ -2,7 +2,13 @@ const SUPABASE_URL = 'https://dfonxvudkwwbwtlswjqp.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_-3BEyLaX838Z7_55AQF4eg_nTeXchXl';
 const ACCESS_REQUEST_EMAIL = 'robin.flamecourt2@ucb.com';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const ROLE_LABELS = {admin:'Administrateur',responsable:'Responsable',utilisateur:'Utilisateur',lecture:'Lecture seule'};
+const ROLE_LABELS = {
+  super_admin:'Super administrateur',
+  admin:'Administrateur',
+  responsable:'Responsable',
+  utilisateur:'Utilisateur',
+  lecture:'Lecture seule'
+};
 let state = { session:null, user:null, page:'dashboard', message:'', error:'', ots:[], users:[], history:[], accessRequests:[], foundOT:null, filters:{q:'',statut:'',emplacement:''}, importRows:[], editId:null };
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
