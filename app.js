@@ -56,20 +56,33 @@ async function resetPassword() {
   const email = document.querySelector('#email')?.value?.trim();
 
   if (!email) {
-    alert('Indique ton adresse email.');
+    alert('Veuillez indiquer votre adresse email.');
     return;
   }
 
-  const { error } = await sb.auth.resetPasswordForEmail(email, {
-    redirectTo: window.location.origin
+  await sb.from('access_requests').insert({
+    email: email,
+    message: 'Demande de réinitialisation du mot de passe'
   });
 
-  if (error) {
-    alert(error.message);
-    return;
-  }
+  const subject = encodeURIComponent(
+    'Demande de réinitialisation de mot de passe'
+  );
 
-  alert('Un email de réinitialisation a été envoyé.');
+  const body = encodeURIComponent(
+    `Bonjour,
+
+Une demande de réinitialisation de mot de passe a été effectuée.
+
+Utilisateur : ${email}
+
+Merci.`
+  );
+
+  window.location.href =
+    `mailto:robin.flamecourt2@ucb.com?subject=${subject}&body=${body}`;
+
+  alert('La demande a été envoyée à l’administrateur.');
 }
 async function requestAccess(e){
   e.preventDefault(); const requester=$('#request_email').value.trim().toLowerCase(); if(!requester.includes('@')) return alert('Adresse mail invalide.');
