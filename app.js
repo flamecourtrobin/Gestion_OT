@@ -312,17 +312,149 @@ function downloadTemplate(){download('modele_ot.csv','numero_ot,nom,date_fin,emp
 function download(name,text){const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'})); a.download=name; a.click();}
 function exportCSV(){const rows=filtered(state.ots); const head=['numero_ot','nom','date_fin','emplacement','date_prise','autre','statut']; const csv=[head.join(';'),...rows.map(o=>head.map(h=>`"${String(o[h]??'').replaceAll('"','""')}"`).join(';'))].join('\n'); download('export_ot.csv',csv)}
 function exportExcel(){const ws=XLSX.utils.json_to_sheet(filtered(state.ots)); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'OT'); XLSX.writeFile(wb,'export_ot.xlsx');}
-function missingPage(){
-  return shell(
-    `
-    <div class="panel">
-      <h3>Articles manquants</h3>
-      <p>La page fonctionne.</p>
-    </div>
-    `,
-    'Articles manquants',
-    'Gestion des articles manquants'
+function getMissingForOT(numero_ot){
+  return state.missingArticles.filter(m =>
+    String(m.numero_ot) === String(numero_ot)
   );
+}
+
+function renderMissingList(numero_ot){
+  const list = getMissingForOT(numero_ot);
+
+  if(!list.length) return '';
+
+  return list.map(m =>
+    `${esc(m.article_manquant)} x${esc(m.quantite_manquante)} - PO ${esc(m.numero_po || '')}`
+  ).join('<br>');
+}
+
+function missingPage(){
+  if(!canAdd()) {
+    return shell('<div class="err">Accès refusé.</div>', 'Articles manquants');
+  }
+
+  return shell(`
+    <div class="panel">
+      <h3>Ajouter un article manquant</h3>
+
+      <form onsubmit="saveMissingArticle(event)">
+        <div class="grid2">
+          <div class="field">
+            <label>N° OT</label>
+            <input name="numero_ot" required placeholder="4382559">
+          </div>
+
+          <div class="field">
+            <label>Article manquant</label>
+            <input name="article_manquant" required placeholder="2065289">
+          </div>
+
+          <div class="field">
+            <label>Quantité manquante</label>
+            <input name="quantite_manquante" type="number" min="1" required value="1">
+          </div>
+
+          <div class="field">
+            <label>Numéro PO</label>
+            <input name="numero_po" placeholder="4500732589">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Commentaire</label>
+          <textarea name="commentaire"></textarea>
+        </div>
+
+        <button>Ajouter</button>
+      </form>
+    </div>
+
+    <br>
+
+    <div class="panel">
+      <h3>Articles manquants enregistrés</h3>
+      ${missingArticlesTable()}
+    </div>
+  `, 'Articles manquants', 'Plusieurs articles peuvent être liés au même OT');
+}
+
+async function saveMissingArticle(e){
+  e.preventDefault();
+
+  const data = Object.fromEntries(new FormData(e.target).entries());
+
+  const payload = {
+    numero_ot: String(data.numero_ot || '').trim(),
+    article_manquant: String(data.article_manquant || '').trim(),
+    quantite_manquante: Number(data.quantite_manquante || 1),
+    numero_po: String(data.numero_po || '').trim(),
+    commentaire: String(data.commentaire || '').trim(),
+    created_by: state.user.id
+  };
+
+  const ot = state.ots.find(o =>
+    String(o.numero_ot) === String(payload.numero_ot)
+  );
+
+  if(ot) payload.ot_id = ot.id;
+
+  const {error} = await sb
+    .from('ot_missing_articles')
+    .insert(payload);
+
+  if(error) return err(error.message);
+
+  await loadMissingArticles();
+  msg('Article manquant ajouté.');
+}
+
+function missingArticlesTable(){
+  if(!state.missingArticles.length) return '<p>Aucun article manquant.</p>';
+
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>N° OT</th>
+            <th>Article manquant</th>
+            <th>Quantité</th>
+            <th>PO</th>
+            <th>Commentaire</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${state.missingArticles.map(m => `
+            <tr>
+              <td>${esc(m.numero_ot)}</td>
+              <td>${esc(m.article_manquant)}</td>
+              <td>${esc(m.quantite_manquante)}</td>
+              <td>${esc(m.numero_po || '')}</td>
+              <td>${esc(m.commentaire || '')}</td>
+              <td>
+                ${isAdmin() ? `<button class="small danger" onclick="deleteMissingArticle('${m.id}')">Supprimer</button>` : ''}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function deleteMissingArticle(id){
+  if(!confirm('Supprimer cet article manquant ?')) return;
+
+  const {error} = await sb
+    .from('ot_missing_articles')
+    .delete()
+    .eq('id', id);
+
+  if(error) return err(error.message);
+
+  await loadMissingArticles();
+  msg('Article manquant supprimé.');
 }
 function historyPage(){if(!isAdmin()) return shell('<div class="err">Accès refusé.</div>','Historique'); return shell(`<div class="panel">${state.history.map(h=>`<div class="history-item"><b>${esc(h.action)}</b> — ${esc(h.details)}<br><span class="muted">${fmt(h.created_at)} par ${esc(h.profiles?.full_name||h.profiles?.email||'')}</span></div>`).join('')||'Aucun historique.'}</div>`,'Historique','Dernières actions enregistrées dans Supabase')}
 init();
