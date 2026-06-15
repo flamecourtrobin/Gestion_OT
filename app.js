@@ -142,7 +142,7 @@ async function takeOT(id){ const {data,error}=await sb.from('ots').update({pris_
 function filtered(list){const f=state.filters; return list.filter(o=>(!f.q||Object.values(o).join(' ').toLowerCase().includes(f.q.toLowerCase()))&&(!f.statut||statusOf(o)===f.statut)&&(!f.emplacement||o.emplacement===f.emplacement));}
 function table(){if(!canViewAll()) return shell('<div class="err">Accès refusé.</div>','Tableau général'); const list=filtered(state.ots); const emps=[...new Set(state.ots.map(o=>o.emplacement).filter(Boolean))]; return shell(`<div class="toolbar"><input placeholder="Recherche" value="${esc(state.filters.q)}" oninput="state.filters.q=this.value;render()"><select onchange="state.filters.statut=this.value;render()"><option value="">Tous statuts</option>${['Disponible','Pris','Terminé','Retard'].map(s=>`<option ${state.filters.statut===s?'selected':''}>${s}</option>`).join('')}</select><select onchange="state.filters.emplacement=this.value;render()"><option value="">Tous emplacements</option>${emps.map(e=>`<option ${state.filters.emplacement===e?'selected':''}>${esc(e)}</option>`).join('')}</select><button class="secondary" onclick="exportCSV()">Export CSV</button><button class="secondary" onclick="exportExcel()">Export Excel</button></div>${otTable(list,true)}`,'Tableau général',`${list.length} OT affichés`) }
 function my(){const list=state.ots.filter(o=>o.pris_par===state.user.id); return shell(`${otTable(list,false)}`,'Mes OT','OT pris par votre compte')}
-function otTable(list,actions){return `<div class="table-wrap"><table><thead><tr><th>N° OT</th><th>Nom</th><th>Date fin</th><th>Emplacement</th><th>Pris par</th><th>Date prise</th><th>Autre</th><th>Statut</th>${actions?'<th>Actions</th>':''}</tr></thead><tbody>${list.map(o=>{const st=statusOf(o), pris=o.pris_par_profile?.full_name||o.pris_par_profile?.email||'';return `<tr><td><b>${esc(o.numero_ot)}</b></td><td>${esc(o.nom)}</td><td>${esc(o.date_fin)}</td><td>${esc(o.emplacement)}</td><td>${esc(pris)}</td><td>${fmt(o.date_prise)}</td><td>${esc(o.autre)}</td><td><span class="badge ${st}">${st}</span></td>${actions?`<td class="actions">${canEdit()?`<button class="small secondary" onclick="state.editId='${o.id}';setPage('add')">Modifier</button>`:''}${canDel()?`<button class="small danger" onclick="deleteOT('${o.id}')">Supprimer</button>`:''}${canEdit()&&o.statut==='Pris'?`<button class="small ghost" onclick="finishOT('${o.id}')">Terminer</button>`:''}</td>`:''}</tr>`}).join('')||'<tr><td colspan="9">Aucun OT.</td></tr>'}</tbody></table></div>`}
+function otTable(list,actions){return `<div class="table-wrap"><table><thead><tr><th>N° OT</th><th>Nom</th><th>Date fin</th><th>Emplacement</th><th>Pris par</th><th>Date prise</th><th>Autre</th><th>Articles manquants</th><th>Statut</th>${actions?'<th>Actions</th>':''}</tr></thead><tbody>${list.map(o=>{const st=statusOf(o), pris=o.pris_par_profile?.full_name||o.pris_par_profile?.email||'';return `<tr><td><b>${esc(o.numero_ot)}</b></td><td>${esc(o.nom)}</td><td>${esc(o.date_fin)}</td><td>${esc(o.emplacement)}</td><td>${esc(pris)}</td><td>${fmt(o.date_prise)}</td><td>${esc(o.autre)}</td><td>${renderMissingList(o.numero_ot)}</td><td><span class="badge ${st}">${st}</span></td>${actions?`<td class="actions">${canEdit()?`<button class="small secondary" onclick="state.editId='${o.id}';setPage('add')">Modifier</button>`:''}${canDel()?`<button class="small danger" onclick="deleteOT('${o.id}')">Supprimer</button>`:''}${canEdit()&&o.statut==='Pris'?`<button class="small ghost" onclick="finishOT('${o.id}')">Terminer</button>`:''}</td>`:''}</tr>`}).join('')||'<tr><td colspan="9">Aucun OT.</td></tr>'}</tbody></table></div>`}
 async function deleteOT(id){if(!confirm('Supprimer cet OT ?'))return; const o=state.ots.find(x=>x.id===id); const {error}=await sb.from('ots').delete().eq('id',id); if(error) return err(error.message); await log('Suppression OT',o?.numero_ot||id); await loadAll(); msg('OT supprimé.')} 
 async function finishOT(id){const o=state.ots.find(x=>x.id===id); const {error}=await sb.from('ots').update({statut:'Terminé'}).eq('id',id); if(error) return err(error.message); await log('OT terminé',o?.numero_ot,id); await loadAll(); msg('OT terminé.');}
 function usersPage(){if(!isAdmin()) return shell('<div class="err">Accès refusé.</div>','Comptes'); return shell(`<div class="grid2"><div class="panel"><h3>Créer / modifier un profil</h3><p class="muted">Crée d’abord l’utilisateur dans Supabase > Authentication > Users. Ensuite ajoute/modifie son profil ici avec le même email.</p><form onsubmit="saveUser(event)"><input type="hidden" id="user_id"><div class="field"><label>ID utilisateur Supabase</label><input id="user_uuid" placeholder="uuid depuis Authentication > Users" required></div><div class="field"><label>Nom</label><input id="user_name" required></div><div class="field"><label>Email</label><input id="user_email" type="email" required></div><div class="field"><label>Rôle</label><select id="user_role">${Object.entries(ROLE_LABELS)
@@ -319,13 +319,21 @@ function getMissingForOT(numero_ot){
 }
 
 function renderMissingList(numero_ot){
-  const list = getMissingForOT(numero_ot);
+  const list = state.missingArticles.filter(m =>
+    String(m.numero_ot) === String(numero_ot)
+  );
 
   if(!list.length) return '';
 
-  return list.map(m =>
-    `${esc(m.article_manquant)} x${esc(m.quantite_manquante)} - PO ${esc(m.numero_po || '')}`
-  ).join('<br>');
+  return `
+    <b>${list.length} article(s)</b><br>
+    ${list.map(m => `
+      ${esc(m.article_manquant)}
+      × ${esc(m.quantite_manquante)}
+      <br>
+      PO : ${esc(m.numero_po || '-')}
+    `).join('<hr style="margin:4px 0">')}
+  `;
 }
 
 function missingPage(){
