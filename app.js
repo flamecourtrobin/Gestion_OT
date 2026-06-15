@@ -38,7 +38,6 @@ async function loadAll(){
 }
   await Promise.all([loadUsers(),loadHistory(),loadAccessRequests()]);
 }
-}
 async function loadOTs(){
   let all = [];
   let from = 0;
