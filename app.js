@@ -65,10 +65,7 @@ async function resetPassword() {
     message: 'Demande de réinitialisation du mot de passe'
   });
 
-  const subject = encodeURIComponent(
-    'Demande de réinitialisation de mot de passe'
-  );
-
+  const subject = encodeURIComponent('Demande de réinitialisation de mot de passe');
   const body = encodeURIComponent(
     `Bonjour,
 
@@ -82,7 +79,7 @@ Merci.`
   window.location.href =
     `mailto:robin.flamecourt2@ucb.com?subject=${subject}&body=${body}`;
 
-  alert('La demande a été envoyée à l’administrateur.');
+  alert('Votre demande a été transmise à l’administrateur.');
 }
 async function requestAccess(e){
   e.preventDefault(); const requester=$('#request_email').value.trim().toLowerCase(); if(!requester.includes('@')) return alert('Adresse mail invalide.');
