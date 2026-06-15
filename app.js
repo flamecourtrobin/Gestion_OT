@@ -52,6 +52,25 @@ async function loadAccessRequests(){ const {data,error}=await sb.from('access_re
 async function log(action, details, ot_id=null){ await sb.from('ot_history').insert({ot_id, action, user_id:state.user?.id, details}); }
 async function login(e){ e.preventDefault(); const email=$('#email').value.trim(); const password=$('#password').value; const {error}=await sb.auth.signInWithPassword({email,password}); if(error) return renderLogin(error.message); }
 async function logout(){ await sb.auth.signOut(); state={...state,session:null,user:null,page:'dashboard',ots:[],users:[],history:[]}; render(); }
+async function resetPassword() {
+  const email = document.querySelector('#email')?.value?.trim();
+
+  if (!email) {
+    alert('Indique ton adresse email.');
+    return;
+  }
+
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin
+  });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  alert('Un email de réinitialisation a été envoyé.');
+}
 async function requestAccess(e){
   e.preventDefault(); const requester=$('#request_email').value.trim().toLowerCase(); if(!requester.includes('@')) return alert('Adresse mail invalide.');
   await sb.from('access_requests').insert({email:requester, message:'Demande d’accès depuis l’application'});
@@ -62,7 +81,9 @@ async function requestAccess(e){
 function setPage(p){state.page=p; state.message=''; state.error=''; state.foundOT=null; state.importRows=[]; state.editId=null; render();}
 function nav(p,t){return `<button class="${state.page===p?'active':''}" onclick="setPage('${p}')">${t}</button>`}
 function shell(content,title,sub=''){return `<div class="app"><aside class="side"><div class="brand">Gestion OT</div><div class="version">Version 4 Supabase</div><div class="userbox"><b>${esc(state.user.full_name||state.user.email)}</b><br>${esc(state.user.email)}<br><span>${ROLE_LABELS[state.user.role]||state.user.role}</span></div><nav class="nav">${nav('dashboard','Tableau de bord')}${canAdd()?nav('add','Ajouter un OT'):''}${nav('take','Récupérer un OT')}${nav('my','Mes OT')}${canViewAll()?nav('table','Tableau général'):''}${canAdd()?nav('import','Import OT'):''}${isAdmin()?nav('users','Comptes & accès'):''}${isAdmin()?nav('history','Historique'):''}<button onclick="logout()">Déconnexion</button></nav></aside><main class="main"><div class="top"><div><h1>${title}</h1><div class="sub">${sub}</div></div></div>${state.message?`<div class="msg">${esc(state.message)}</div>`:''}${state.error?`<div class="err">${esc(state.error)}</div>`:''}${content}</main></div>`}
-function renderLogin(error=''){document.querySelector('#app').innerHTML=`<div class="login-wrap"><div class="login-card"><section class="hero"><h1>Gestion des OT</h1><p>Application connectée à Supabase : mêmes données sur PC, tablette et smartphone.</p><p><b>Demander un accès</b><br>La demande sera enregistrée et un email sera préparé pour ${ACCESS_REQUEST_EMAIL}.</p></section><section class="login-form"><h2>Connexion</h2>${error?`<div class="err">${esc(error)}</div>`:''}<form onsubmit="login(event)"><div class="field"><label>Email</label><input id="email" type="email" required placeholder="prenom.nom@ucb.com"></div><div class="field"><label>Mot de passe</label><input id="password" type="password" required></div><button type="submit">Se connecter</button></form><hr><h3>Avoir accès</h3><form onsubmit="requestAccess(event)"><div class="field"><label>Votre adresse mail</label><input id="request_email" type="email" required placeholder="prenom.nom@ucb.com"></div><button class="secondary" type="submit">Envoyer la demande</button></form></section></div></div>`}
+function renderLogin(error=''){document.querySelector('#app').innerHTML=`<div class="login-wrap"><div class="login-card"><section class="hero"><h1>Gestion des OT</h1><p>Application connectée à Supabase : mêmes données sur PC, tablette et smartphone.</p><p><b>Demander un accès</b><br>La demande sera enregistrée et un email sera préparé pour ${ACCESS_REQUEST_EMAIL}.</p></section><section class="login-form"><h2>Connexion</h2>${error?`<div class="err">${esc(error)}</div>`:''}<form onsubmit="login(event)"><div class="field"><label>Email</label><input id="email" type="email" required placeholder="prenom.nom@ucb.com"></div><div class="field"><label>Mot de passe</label><input id="password" type="password" required></div><button type="submit">Se connecter</button><button type="button" class="secondary" onclick="resetPassword()">
+  Mot de passe oublié
+</button></form><hr><h3>Avoir accès</h3><form onsubmit="requestAccess(event)"><div class="field"><label>Votre adresse mail</label><input id="request_email" type="email" required placeholder="prenom.nom@ucb.com"></div><button class="secondary" type="submit">Envoyer la demande</button></form></section></div></div>`}
 function render(){ if(!state.session || !state.user) return renderLogin(); const pages = {
   dashboard: dashboard,
   add: add,
